@@ -25,7 +25,36 @@ $deployedFilePath = Join-Path -Path $destinationDirectory -ChildPath $deployedFi
 $executionCommand = "$deployedFilePath /quiet"
 
 # Execute the command
-Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "& '$executionCommand'"
+Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "& '$executionCommand'" -Wait
 
 # Output success message
 Write-Host "CsUninstallTool.exe deployed and executed successfully."
+
+# Define the path to CsUninstallTool.exe
+$CsUninstallToolPath = $deployedFilePath
+
+# Check if the CsUninstallTool.exe exists
+if (Test-Path $CsUninstallToolPath) {
+    # Execute CsUninstallTool.exe with additional switches
+    $process = Start-Process -FilePath $CsUninstallToolPath -ArgumentList "/quiet" -PassThru -Wait -RedirectStandardError "C:\TMP\CsUninstallTool_Error.txt"
+
+    # Check if the process completed successfully
+    if ($process.ExitCode -eq 0) {
+        Write-Output "CrowdStrike remover tool deployed successfully."
+
+        # Wait for a few seconds to ensure the uninstallation process completes
+        Start-Sleep -Seconds 10
+
+        # Verify removal by checking the presence of registry keys
+        $regKeyExists = Test-Path "HKLM:\SOFTWARE\CrowdStrike"
+        if ($regKeyExists) {
+            Write-Output "CrowdStrike registry keys still present. Removal may not have been successful."
+        } else {
+            Write-Output "CrowdStrike registry keys not found. Removal successful."
+        }
+    } else {
+        Write-Output "Error: CrowdStrike remover tool deployment failed with exit code $($process.ExitCode). See error log for details."
+    }
+} else {
+    Write-Output "Error: CsUninstallTool.exe not found at specified path."
+}
